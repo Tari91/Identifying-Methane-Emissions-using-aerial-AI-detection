@@ -1,0 +1,72 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import cv2
+import tensorflow as tf
+from sklearn.model_selection import train_test_split
+from tensorflow.keras import layers, models
+
+# Step 1: Generate Synthetic Data
+def generate_image(size=64, has_methane=False):
+    image = np.random.rand(size, size, 3) * 0.3  # base noise (e.g., terrain)
+
+    if has_methane:
+        # Simulate a plume (bright blob)
+        x, y = np.random.randint(15, size-15), np.random.randint(15, size-15)
+        cv2.circle(image, (x, y), radius=np.random.randint(5, 10), color=(0.8, 1.0, 0.8), thickness=-1)
+    
+    return image
+
+# Step 2: Create Dataset
+def create_dataset(num_samples=1000):
+    images = []
+    labels = []
+    for _ in range(num_samples):
+        label = np.random.choice([0, 1])  # 0 = no methane, 1 = methane
+        img = generate_image(has_methane=label)
+        images.append(img)
+        labels.append(label)
+    return np.array(images), np.array(labels)
+
+# Generate data
+X, y = create_dataset(2000)
+X = X.astype('float32')
+y = tf.keras.utils.to_categorical(y, 2)
+
+# Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
+# Step 3: Build CNN Model
+model = models.Sequential([
+    layers.Input(shape=(64, 64, 3)),
+    layers.Conv2D(32, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.MaxPooling2D((2, 2)),
+
+    layers.Conv2D(64, (3, 3), activation='relu'),
+    layers.Flatten(),
+
+    layers.Dense(64, activation='relu'),
+    layers.Dense(2, activation='softmax')  # binary classification
+])
+
+# Step 4: Compile & Train
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+history = model.fit(X_train, y_train, epochs=10, validation_split=0.1)
+
+# Step 5: Evaluate
+test_loss, test_acc = model.evaluate(X_test, y_test)
+print(f"Test accuracy: {test_acc:.2f}")
+
+# Step 6: Predict on New Image
+def predict_image(img):
+    img = np.expand_dims(img, axis=0)
+    prediction = model.predict(img)[0]
+    return "Methane Leak" if np.argmax(prediction) == 1 else "No Leak"
+
+# Example prediction
+sample_image = generate_image(has_methane=True)
+plt.imshow(sample_image)
+plt.title(predict_image(sample_image))
+plt.show()
